@@ -1,0 +1,65 @@
+# ~/.config/lf/colors — ANSI only, so it follows the terminal theme. pattern  SGR
+di      01;34
+ln      01;36
+or      31;7
+tw      01;34
+ow      01;34
+st      01;34
+pi      33
+so      01;35
+bd      33;01
+cd      33;01
+su      01;32
+sg      01;32
+ex      01;32
+fi      0
+
+*.md    01
+*.txt   0
+*.pdf   31
+*.epub  31
+*.docx  31
+*.odt   31
+*.xlsx  32
+*.ods   32
+*.csv   32
+*.pptx  33
+*.odp   33
+
+*.png   35
+*.jpg   35
+*.jpeg  35
+*.gif   35
+*.webp  35
+*.svg   35
+*.ico   35
+*.mp4   01;35
+*.mkv   01;35
+*.webm  01;35
+*.mov   01;35
+*.avi   01;35
+*.mp3   36
+*.flac  36
+*.ogg   36
+*.opus  36
+*.wav   36
+*.m4a   36
+
+*.zip   01;31
+*.tar   01;31
+*.gz    01;31
+*.xz    01;31
+*.zst   01;31
+*.bz2   01;31
+*.7z    01;31
+*.rar   01;31
+*.iso   01;31
+*.deb   01;31
+*.rpm   01;31
+
+*.log   02
+*.lock  02
+*.bak   02
+*.tmp   02
+*.o     02
+*.pyc   02

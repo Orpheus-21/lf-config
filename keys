@@ -1,0 +1,122 @@
+# ~/.config/lf/keys — vim grammar, every map one line. `?` shows this live.
+#
+#  move    j k  gg G  J/K half page  H/L back/forward in history  f<c> ;  ,  find   / n N search
+#  go      gh ~  gd Downloads  gD Documents  gp Pictures  gv Videos
+#          gc .config  gl .local/share  gt /tmp  ge /etc  gu /usr/share  g/ /  gT trash
+#  jump    <c-p> fzf here   zz zoxide   :z name   <c-g> grep contents → editor at line
+#  open    l <enter> open   e edit   i pager   o open-with…   O force gui app   w shell   <c-t> terminal here
+#  select  <space> toggle+down   v invert   <c-a> all   u none   V visual   * glob   t tag
+#  edit    yy copy  dd cut  pp paste  pl paste as symlink  cc/<esc> clear buffer
+#          yp path  yn name  yd dir  yc contents → clipboard   pc clipboard → file here
+#          r rename  cw name(keep ext)  cW whole  ci prepend  R bulk rename in editor
+#          a new file  A new dir  cx chmod +x  x extract  Z compress (gum picks format)
+#  delete  dD trash  <delete> trash  dr restore from trash  dE empty trash  dX delete forever
+#  view    . zh hidden  zp preview  zn numbers  zr relative  zd item counts  zc dir sizes
+#  sort    sn name  ss size  st time  sa atime  sc ctime  se ext  sr reverse
+#  info    I stat  <a-i> mediainfo  <a-g> lazygit  M mount  U unmount  ? maps  <f1> manual  q quit(cd)
+
+# --- move ------------------------------------------------------------------
+map J half-down
+map K half-up
+map H jump-prev
+map L jump-next
+map <enter> open
+map <delete> trash
+
+# --- go --------------------------------------------------------------------
+map gh cd ~
+map gd cd ~/Downloads
+map gD cd ~/Documents
+# WRITE YOUR PATH: a notes folder, then remove the leading #
+# map gn cd /path/to/your/notes
+map gp cd ~/Pictures
+map gv cd ~/Videos
+# WRITE YOUR PATH: a projects folder, then remove the leading #
+# map gw cd /path/to/your/projects
+map gc cd ~/.config
+map gl cd ~/.local/share
+map gt cd /tmp
+# WRITE YOUR PATH: the mount folder of removable drives, then remove the leading #
+# map gm cd /run/media/<your user name>
+map ge cd /etc
+map gu cd /usr/share
+map g/ cd /
+map gT cd ~/.local/share/Trash/files
+
+# --- jump ------------------------------------------------------------------
+map <c-p> fzf-jump
+map zz zi
+map <c-g> rg
+map F filter
+
+# --- open ------------------------------------------------------------------
+map e edit
+map i pager
+nmap o push :open-with<space>                # nmap: o is visual-change in V mode
+map O &setsid -f xdg-open "$f" >/dev/null 2>&1
+map <c-t> terminal
+map <a-g> lazygit
+
+# --- select ----------------------------------------------------------------
+map <space> :toggle; down
+map <c-a> :unselect; invert
+map * push :glob-select<space>
+
+# --- edit ------------------------------------------------------------------
+# bare y d p c are unmapped so they can be prefixes (lf keeps the single key otherwise)
+map y
+map d
+map p
+map c
+map yy copy
+map yp yank-path
+map yn yank-name
+map yd yank-dir
+map yc yank-content
+map dd cut
+map pp paste
+map pl paste-link
+map pc paste-clip
+map cc clear
+nmap <esc> :unselect; clear                  # nmap: <esc> must stay visual-discard in V mode
+map cw :rename; cmd-delete-home             # rename opens with the cursor before the extension
+map cW :rename; cmd-end; cmd-delete-home
+map ci :rename; cmd-home
+map R bulk-rename
+map a push :mkfile<space>
+map A push :mkdir<space>
+map cx chmod-x
+map x extract
+map Z compress
+
+# --- delete ----------------------------------------------------------------
+map dD trash
+map dr trash-restore
+map dE trash-empty
+map dX delete
+
+# --- view ------------------------------------------------------------------
+map . set hidden!
+map zh set hidden!
+map zp set preview!
+map zn set number!
+map zr set relativenumber!
+map zd set dircounts!
+map zc calcdirsize
+
+# --- sort ------------------------------------------------------------------
+map sn :set sortby natural; set info size
+map ss :set sortby size; set info size
+map st :set sortby time; set info time
+map sa :set sortby atime; set info atime
+map sc :set sortby ctime; set info ctime
+map se :set sortby ext; set info size
+map sr set reverse!
+
+# --- info ------------------------------------------------------------------
+map I stat
+map <a-i> mediainfo
+map M mount
+map U unmount
+map ? maps
+map <f1> manual

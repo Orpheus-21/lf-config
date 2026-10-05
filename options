@@ -1,0 +1,51 @@
+# ~/.config/lf/options
+# --- shell ----------------------------------------------------------------
+set shell bash
+set shellopts '-eu'          # commands die on error / unset var instead of half-running
+set ifs "\n"                 # $fx splits on newline, so spaces in names survive
+set filesep "\n"
+
+# --- layout ---------------------------------------------------------------
+set ratios 1:2:3
+set drawbox true
+set borderstyle roundbox
+set icons true               # ~/.config/lf/icons, Nerd Font glyphs
+set relativenumber true      # 5j / 12k: count, jump, done
+set scrolloff 6
+set dirfirst true
+set info size                # right column; `zt` swaps in time, `zd` toggles item counts
+set sizeunits binary
+set infotimefmtnew 'Jan _2 15:04'
+set infotimefmtold 'Jan _2  2006'
+set timefmt 'Mon 2 Jan 15:04'
+set truncatechar '…'
+set truncatepct 60           # keep the extension visible on long names
+set cursorpreviewfmt "\033[7;2m"
+set promptfmt "\033[1;34m%d\033[0m\033[1m%f\033[0m\033[33m%F\033[0m"
+set rulerfmt "  %a|  %p|  \033[7;31m %m \033[0m|  \033[7;33m %c \033[0m|  \033[7;35m %s \033[0m|  \033[7;36m %v \033[0m|  %f|  %i/%t|  %h·|  %d free"
+set statfmt "\033[36m%p\033[0m %S %t %l"
+
+# --- behaviour ------------------------------------------------------------
+set hidden false
+set hiddenfiles ".*:node_modules:__pycache__:*.pyc:.DS_Store"
+set ignorecase true
+set smartcase true
+set incsearch true           # `/` jumps as you type
+set incfilter true           # `F` narrows as you type
+set anchorfind true
+set findlen 1                # `f<char>` needs one char, no <enter>
+set wrapscan true
+set mouse true
+set autoquit true
+set dupfilefmt '%f (%n)'     # paste-over-self gives "a (1).txt", not "a.txt.~1~"
+set tempmarks 'z'            # 'z is scratch, never written to the bookmarks file
+set preserve "mode:timestamps"
+
+# --- performance ----------------------------------------------------------
+set watch true               # inotify on the open dirs; no polling
+set period 0
+set preload false            # previewer runs only for the file under the cursor
+set dircounts false          # readdir per visible dir per draw; `zd` toggles when wanted
+set dirpreviews true         # preview script gets dirs too; it caps at one eza level
+set previewer ~/.config/lf/preview
+set cleaner ~/.config/lf/cleaner

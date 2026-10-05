@@ -1,0 +1,78 @@
+#!/bin/bash
+# ~/.config/lf/preview  <file> <width> <height> <x> <y>
+# Text through bat, dirs through eza, images/video/pdf as kitty graphics
+# (PNG by file path, so a preview is one ~150-byte escape and never races
+# lf's own drawing; thumbnails cached once per file+mtime). exit 0 = lf may
+# cache the text; exit 1 = drawn straight to the tty, never cached.
+f=$1 w=${2:-80} h=${3:-40} x=${4:-} y=${5:-}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/lf
+mkdir -p "$cache"
+
+# thumbnail path keyed on realpath + mtime, so edits invalidate it
+thumb() { printf '%s/%s.png' "$cache" "$(printf '%s%s' "$(realpath -- "$f")" "$(stat -c %Y -- "$f")" | md5sum | cut -c1-32)"; }
+
+# draw a PNG at the pane position. Ghostty/kitty read the file themselves (t=f);
+# C=1 leaves the cursor alone and DECSC/DECRC undo our own move, because lf
+# tracks the cursor itself and never re-homes it. Other terminals get chafa
+# text art, or a one-liner when chafa is missing.
+image() {
+    case $TERM in
+        *ghostty*|*kitty*)
+            [ -n "$x" ] || exit 0
+            read -r iw ih < <(magick identify -format '%w %h' -- "$1[0]" 2>/dev/null)   # no newline: read "fails" but assigns
+            [ -n "$ih" ] || exit 0
+            # fit into w x (h-1) cells; a cell is assumed twice as tall as wide
+            c=$w r=$(( ih * w / (iw * 2) ))
+            if [ "$r" -gt $((h - 1)) ]; then r=$((h - 1)); c=$(( iw * 2 * r / ih )); fi
+            [ "$r" -ge 1 ] || r=1; [ "$c" -ge 1 ] || c=1
+            printf '\0337\033[%d;%dH\033_Ga=T,f=100,t=f,C=1,q=2,c=%d,r=%d;%s\033\\\0338' \
+                $((y + 1)) $((x + 1)) "$c" "$r" "$(printf '%s' "$1" | base64 -w0)" > /dev/tty
+            exit 1;;
+    esac
+    if command -v chafa >/dev/null; then
+        chafa -f symbols --probe off --animate off --size "${w}x$((h - 1))" -- "$1"
+    else
+        magick identify -format '%m %wx%h %[colorspace] %b\n' -- "$1" 2>/dev/null || file -b -- "$1"
+    fi
+    exit 0
+}
+
+[ -d "$f" ] && { eza -1 --icons=always --color=always --group-directories-first -- "$f" | head -n "$h"; exit 0; }
+
+case "${f,,}" in
+    *.tar|*.tar.*|*.tgz|*.tbz2|*.txz|*.tzst|*.zip|*.7z|*.rar|*.iso|*.deb|*.rpm|*.jar)
+        bsdtar -tf "$f" | head -n "$h"; exit 0;;
+    *.pdf)
+        t=$(thumb); [ -f "$t" ] || pdftoppm -f 1 -l 1 -png -r 60 -singlefile -- "$f" "${t%.png}" 2>/dev/null
+        [ -f "$t" ] && image "$t"
+        pdftotext -l 3 -layout -- "$f" - | head -n "$h"; exit 0;;
+    *.mp4|*.mkv|*.webm|*.mov|*.avi|*.m4v|*.gif)
+        t=$(thumb); [ -f "$t" ] || ffmpegthumbnailer -i "$f" -o "$t" -s 800 -q 8 2>/dev/null
+        [ -f "$t" ] && image "$t"
+        ffprobe -hide_banner -- "$f" 2>&1 | grep -E 'Duration|Stream' | head -n "$h"; exit 0;;
+    *.svg)
+        t=$(thumb); [ -f "$t" ] || magick -density 96 -background none -- "$f" -resize 800x800 "$t" 2>/dev/null
+        [ -f "$t" ] && image "$t"; bat --color=always --style=plain --line-range ":$h" -- "$f"; exit 0;;
+    *.png)
+        image "$f";;
+    *.jpg|*.jpeg|*.webp|*.avif|*.bmp|*.tiff|*.ico|*.heic)
+        # kitty file transfer is PNG-only; one-time resize, then it is cached
+        t=$(thumb); [ -f "$t" ] || magick -- "$f[0]" -auto-orient -resize '1200x1200>' "$t" 2>/dev/null
+        [ -f "$t" ] && image "$t"; file -b -- "$f" | fold -w "$w"; exit 0;;
+    *.mp3|*.flac|*.ogg|*.opus|*.m4a|*.wav)
+        ffprobe -hide_banner -- "$f" 2>&1 | grep -E 'Duration|Stream|title|artist|album' | head -n "$h"; exit 0;;
+    *.json) jq -C . -- "$f" 2>/dev/null | head -n "$h" && exit 0;;
+    *.md|*.markdown) bat --color=always --style=plain --language=markdown --line-range ":$h" -- "$f"; exit 0;;
+    *.odt|*.ods|*.odp|*.docx|*.xlsx|*.pptx|*.doc)
+        # Limit: no libreoffice --convert-to here, it is 2 s and 300 MB per hover
+        bsdtar -tf "$f" 2>/dev/null | head -n "$h"; exit 0;;
+esac
+
+case $(file --mime-type -Lb -- "$f") in
+    text/*|application/json|application/x-*script*|inode/x-empty)
+        bat --color=always --style=plain --line-range ":$h" --terminal-width "$w" -- "$f"; exit 0;;
+    image/*)
+        t=$(thumb); [ -f "$t" ] || magick -- "$f[0]" -resize '1200x1200>' "$t" 2>/dev/null
+        [ -f "$t" ] && image "$t"; file -b -- "$f" | fold -w "$w"; exit 0;;
+    *) file -b -- "$f" | fold -w "$w"; exit 0;;
+esac

@@ -1,0 +1,14 @@
+# ~/.config/lf/lfrc  (lf r42)
+# Entry point. Each source is one concern; delete a line to drop it.
+#   options   every `set`, grouped
+#   commands  every `cmd` (open, trash, extract, fzf, zoxide, rg, bulk-rename …)
+#   keys      every `map`, vim grammar, cheatsheet in its header
+# preview, cleaner, icons, colors live next to this file.
+# `?` inside lf lists all maps; `<f1>` opens the full manual.
+
+source ~/.config/lf/options
+source ~/.config/lf/commands
+source ~/.config/lf/keys
+
+# run once at startup so the title/zoxide hooks fire for the launch dir
+on-cd

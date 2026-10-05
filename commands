@@ -1,0 +1,158 @@
+# ~/.config/lf/commands
+# Prefix legend (lf): $ = foreground shell, % = shell with output in the
+# status line, & = background, no prefix = lf builtin.  $f current file,
+# $fx selected-or-current, $id this client (for lf -remote).
+
+# --- open ------------------------------------------------------------------
+# $EDITOR can hold arguments (for example "code --wait") and ifs is "\n", so it must go through eval
+cmd edit ${{ set -f; eval "$EDITOR" '-- $fx'; }}
+# text goes to the editor in this terminal; everything else to xdg-open, detached
+cmd open &{{
+    set -f
+    case $(file --mime-type -Lb -- "$f") in
+        text/*|inode/x-empty|application/json) lf -remote "send $id edit";;
+        *) for x in $fx; do setsid -f xdg-open "$x" >/dev/null 2>&1; done;;
+    esac
+}}
+# :open-with mpv  -> runs `mpv <selection>` detached from lf
+cmd open-with &{{ set -f; setsid -f "$@" -- $fx >/dev/null 2>&1; }}
+cmd pager ${{
+    set -f
+    case $(file --mime-type -Lb -- "$f") in
+        text/*|application/json) bat --paging=always -- "$f";;
+        *) ~/.config/lf/preview "$f" "$(tput cols)" "$(tput lines)" | less -R;;
+    esac
+}}
+cmd terminal &setsid -f xdg-terminal-exec >/dev/null 2>&1   # ghostty inherits cwd
+cmd lazygit $lazygit
+cmd manual $lf -doc | less -R
+
+# --- create ----------------------------------------------------------------
+cmd mkdir %{{ IFS=" "; mkdir -p -- "$*" && lf -remote "send $id select \"$*\""; }}   # $* so spaces need no quotes
+cmd mkfile %{{ IFS=" "; touch -- "$*" && lf -remote "send $id select \"$*\""; }}
+cmd chmod-x %{{
+    set -f
+    for x in $fx; do [ -x "$x" ] && chmod -x -- "$x" || chmod +x -- "$x"; done
+    lf -remote "send $id reload"
+}}
+
+# --- delete / trash --------------------------------------------------------
+cmd trash %{{ set -f; gio trash -- $fx && printf 'trashed %s' "$fx" | head -c 200; }}
+cmd trash-restore ${{
+    pick=$(gio trash --list | fzf --reverse --delimiter '\t' --with-nth 2 --prompt 'restore> ') || exit 0
+    gio trash --restore "${pick%%	*}"
+}}
+cmd trash-empty %gio trash --empty && echo 'trash emptied'
+
+# --- rename ----------------------------------------------------------------
+# selection (or the whole dir) opens in the editor, one name per line; edit, save, done
+cmd bulk-rename ${{
+    set -f
+    old="$(mktemp)"; new="$(mktemp)"
+    if [ -n "${fs:-}" ]; then printf '%s\n' "$fs" > "$old"; else ls -1 > "$old"; fi
+    cp -- "$old" "$new"
+    eval "$EDITOR" '"$new"'
+    [ "$(wc -l < "$new")" -eq "$(wc -l < "$old")" ] || { echo 'line count changed, aborting'; rm -f -- "$old" "$new"; exit 1; }
+    paste -d '\n' "$old" "$new" | while IFS= read -r a && IFS= read -r b; do
+        [ "$a" = "$b" ] || mv -n -- "$a" "$b"
+    done
+    rm -f -- "$old" "$new"
+    lf -remote "send $id unselect; reload"
+}}
+
+# --- paste variants --------------------------------------------------------
+# pp is the builtin paste; this one symlinks instead of copying
+cmd paste-link %{{
+    set -f
+    files=$(tail -n +2 ~/.local/share/lf/files)   # line 1 is copy/move, rest are paths
+    [ -n "$files" ] || { echo 'nothing yanked'; exit 0; }
+    for x in $files; do ln -s -- "$x" "$PWD/$(basename "$x")"; done
+    lf -remote "send $id clear"
+}}
+
+# --- clipboard -------------------------------------------------------------
+cmd yank-path %printf '%s' "$fx" | wl-copy && echo 'path copied'
+cmd yank-name %basename -a -- $fx | wl-copy && echo 'name copied'
+cmd yank-dir  %printf '%s' "$PWD" | wl-copy && echo 'dir copied'
+cmd yank-content %wl-copy < "$f" && echo 'contents copied'
+# paste an image/file from the clipboard into cwd (screenshots → here)
+cmd paste-clip %{{
+    t=$(wl-paste --list-types | head -1)
+    case $t in
+        image/*) out="clip-$(date +%Y%m%d-%H%M%S).${t#image/}"; wl-paste > "$out";;
+        *) out="clip-$(date +%Y%m%d-%H%M%S).txt"; wl-paste > "$out";;
+    esac
+    lf -remote "send $id select \"$out\""
+}}
+
+# --- archives --------------------------------------------------------------
+# always extracts into its own folder, tarbombs contained
+cmd extract ${{
+    set -f
+    case "$f" in
+        *.tar|*.tar.*|*.tgz|*.tbz2|*.txz|*.tzst) tar --one-top-level -xf "$f";;
+        *) d="${f%.*}"; mkdir -p -- "$d" && bsdtar -xf "$f" -C "$d";;
+    esac
+}}
+# Limit: assumes the selection lives in the current dir; cross-dir selections get flattened
+cmd compress ${{
+    set -f
+    fmt=$(printf 'tar.zst\nzip\ntar.gz\ntar.xz\n' | gum choose --header 'format') || exit 0
+    name=$(gum input --placeholder 'archive name' --value "$(basename "${f%.*}")") || exit 0
+    names=$(for x in $fx; do basename -- "$x"; done)
+    case $fmt in
+        zip) zip -qr -- "$name.zip" $names;;
+        *)   tar -caf "$name.$fmt" -- $names;;
+    esac
+    lf -remote "send $id select \"$name.$fmt\""
+}}
+
+# --- jump ------------------------------------------------------------------
+cmd fzf-jump ${{
+    res=$(fd --hidden --exclude .git --color=always . | fzf --ansi --reverse \
+        --preview '~/.config/lf/preview {} $FZF_PREVIEW_COLUMNS $FZF_PREVIEW_LINES' \
+        --header 'jump to') || exit 0
+    [ -d "$res" ] && cmd=cd || cmd=select
+    lf -remote "send $id $cmd \"$res\""
+}}
+cmd z %{{ d=$(zoxide query -- "$@") && lf -remote "send $id cd \"$d\""; }}
+cmd zi ${{ d=$(zoxide query -i -- "$@") && lf -remote "send $id cd \"$d\""; }}
+# grep file contents, land in the editor on that line
+cmd rg ${{
+    pick=$(rg --line-number --no-heading --color=always --smart-case . 2>/dev/null \
+        | fzf --ansi --reverse --delimiter : --header 'grep' \
+              --preview 'bat --color=always --highlight-line {2} -- {1}' \
+              --preview-window '+{2}-8') || exit 0
+    line=${pick#*:}; line=${line%%:*}
+    eval "$EDITOR" '+"$line" -- "${pick%%:*}"'
+}}
+
+# --- info ------------------------------------------------------------------
+cmd dirsize %du -sh -- "$f" | cut -f1
+cmd mediainfo $ffprobe -hide_banner -- "$f" 2>&1 | less
+cmd stat %stat -c '%A %U:%G %s bytes  mod %y' -- "$f"
+
+# --- disks -----------------------------------------------------------------
+cmd mount ${{
+    pick=$(lsblk -rpno NAME,SIZE,FSTYPE,MOUNTPOINT | awk -F'[ ]' '$3!="" && $4==""' \
+        | gum choose --header 'mount') || exit 0
+    dev=${pick%% *}
+    udisksctl mount -b "$dev" && lf -remote "send $id cd \"$(findmnt -nro TARGET -S "$dev")\""
+}}
+cmd unmount ${{
+    pick=$(lsblk -rpno NAME,SIZE,MOUNTPOINT | awk -F'[ ]' '$3 ~ /^\/run\/media/' \
+        | gum choose --header 'unmount') || exit 0
+    lf -remote "send $id cd ~"
+    udisksctl unmount -b "${pick%% *}"
+}}
+
+# --- hooks -----------------------------------------------------------------
+# window title + zoxide learns every dir you land in + git branch in the prompt
+cmd on-cd &{{
+    lf -remote "send $id tty-write \"\033]0;lf ${PWD/#$HOME/\~}\007\""
+    zoxide add -- "$PWD"
+    branch=$(git -C "$PWD" symbolic-ref --short -q HEAD 2>/dev/null) || branch=
+    fmt="\033[1;34m%d\033[0m\033[1m%f\033[0m\033[33m%F\033[0m"   # = promptfmt in options
+    [ -n "$branch" ] && fmt="$fmt\033[35m  $branch\033[0m"
+    lf -remote "send $id set promptfmt \"$fmt\""
+}}
